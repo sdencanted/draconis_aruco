@@ -1,0 +1,58 @@
+{
+  "configurations": [
+    {
+      "browse": {
+        "databaseFilename": "${default}",
+        "limitSymbolsToIncludedHeaders": false
+      },
+      "includePath": [
+        "/home/painis/symmotion_ws/devel/include/**",
+        "/home/painis/catkin_ws/devel/include/**",
+        "/opt/ros/noetic/include/**",
+        "/home/painis/catkin_ws/src/rpg_dvs_ros/davis_ros_driver/include/**",
+        "/home/painis/catkin_ws/src/rpg_dvs_ros/dvs_calibration/include/**",
+        "/home/painis/catkin_ws/src/rpg_dvs_ros/dvs_renderer/include/**",
+        "/home/painis/catkin_ws/src/rpg_dvs_ros/dvs_ros_driver/include/**",
+        "/home/painis/catkin_ws/src/rpg_dvs_ros/dvxplorer_ros_driver/include/**",
+        "/home/painis/catkin_ws/src/eigen_checks/include/**",
+        "/home/painis/symmotion_ws/src/drone_repos/gazebo_ros_link_attacher/include/**",
+        "/home/painis/symmotion_ws/src/agv_repos/geographic_info/geodesy/include/**",
+        "/home/painis/symmotion_ws/src/drone_repos/mavros/libmavconn/include/**",
+        "/home/painis/symmotion_ws/src/agv_repos/LMS1xx/include/**",
+        "/home/painis/symmotion_ws/src/drone_repos/mav_comm/mav_msgs/include/**",
+        "/home/painis/symmotion_ws/src/drone_repos/mav_comm/mav_planning_msgs/include/**",
+        "/home/painis/symmotion_ws/src/drone_repos/mavros/mavros/include/**",
+        "/home/painis/symmotion_ws/src/drone_repos/mavros/mavros_msgs/include/**",
+        "/home/painis/symmotion_ws/src/slam_repos/pointcloud_to_laserscan/include/**",
+        "/home/painis/catkin_ws/src/prophesee_ros_wrapper/prophesee_ros_driver/include/**",
+        "/home/painis/symmotion_ws/src/drone_repos/realsense_ros_gazebo/include/**",
+        "/home/painis/symmotion_ws/src/agv_repos/robot_localization/include/**",
+        "/home/painis/catkin_ws/src/rt_of_low_high_res_event_cameras/include/**",
+        "/home/painis/symmotion_ws/src/drone_repos/rviz_camera_stream/include/**",
+        "/home/painis/symmotion_ws/src/slam_toolbox/slam_toolbox/include/**",
+        "/home/painis/symmotion_ws/src/symmotion_gz_plugins/include/**",
+        "/home/painis/symmotion_ws/src/agv_repos/teleop_twist_joy/include/**",
+        "/home/painis/symmotion_ws/src/drone_repos/mavros/test_mavros/include/**",
+        "/home/painis/symmotion_ws/src/slam_repos/geometry2/tf2/include/**",
+        "/home/painis/symmotion_ws/src/slam_repos/geometry2/tf2_bullet/include/**",
+        "/home/painis/symmotion_ws/src/slam_repos/geometry2/tf2_eigen/include/**",
+        "/home/painis/symmotion_ws/src/slam_repos/geometry2/tf2_geometry_msgs/include/**",
+        "/home/painis/symmotion_ws/src/slam_repos/geometry2/tf2_kdl/include/**",
+        "/home/painis/symmotion_ws/src/slam_repos/geometry2/tf2_msgs/include/**",
+        "/home/painis/symmotion_ws/src/slam_repos/geometry2/tf2_ros/include/**",
+        "/home/painis/symmotion_ws/src/slam_repos/geometry2/tf2_sensor_msgs/include/**",
+        "/home/painis/symmotion_ws/src/drone_repos/threespanel/include/**",
+        "/home/painis/symmotion_ws/src/agv_repos/twist_mux/include/**",
+        "/home/painis/symmotion_ws/src/agv_repos/unique_identifier/unique_id/include/**",
+        "/home/painis/symmotion_ws/src/agv_repos/velodyne_simulator/velodyne_gazebo_plugins/include/**",
+        "/usr/include/**"
+      ],
+      "name": "ROS",
+      "intelliSenseMode": "gcc-x64",
+      "compilerPath": "/usr/bin/gcc",
+      "cStandard": "gnu11",
+      "cppStandard": "c++14"
+    }
+  ],
+  "version": 4
+}
