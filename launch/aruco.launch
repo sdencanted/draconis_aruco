@@ -2,28 +2,32 @@
 
     <!-- aruco ros params -->
     <arg name="markerId" default="5" />
-    <arg name="markerSize" default="0.058" /> <!-- in meters -->
+    <arg name="markerSize" default="0.15" /> <!-- in meters -->
     <arg name="marker_frame" default="marker_frame" />
     <arg name="camera_frame" default="oak_d_pro_w_rgb_camera_frame" />
     <arg name="ref_frame" default="" /> <!-- leave empty and the pose will be published wrt param parent_name -->
     <arg name="corner_refinement" default="LINES" /> <!-- NONE, HARRIS, LINES, SUBPIX -->
     
     <!-- controller params -->
-    <arg name="x_p_gain" default="0.1" />
-    <arg name="y_p_gain" default="0.1" />
+    <arg name="x_p_gain" default="0.9" />
+    <arg name="y_p_gain" default="0.8" />
+    <!-- <arg name="x_p_gain" default="0.0" />
+    <arg name="y_p_gain" default="0.0" /> -->
     <arg name="x_pos_goal" default="1.0" />
-    <arg name="yaw_p_gain" default="0.1" />
-    <arg name="yaw_vy_p_gain" default="0.1" />
+    <arg name="yaw_p_gain" default="2.0" />
+    <!-- <arg name="yaw_vy_p_gain" default="0.25" /> -->
+    <!-- <arg name="yaw_p_gain" default="0.0" /> -->
+    <arg name="yaw_vy_p_gain" default="0.0" />
 
     <arg name="max_v" default="0.1" />
-    <arg name="max_yaw_rate" default="0.1" />
+    <arg name="max_yaw_rate" default="0.25" />
 
     <arg name="drone_frame" default="" /> <!-- blank to use camera frame -->
 
     <?ignore
     <node pkg="aruco_ros" type="single" name="aruco_single">
-        <remap from="/camera_info" to="/stereo_publisher/rgb/camera_info" />
-        <remap from="/image" to="/stereo_publisher/rgb/image" />
+        <remap from="/camera_info" to="/rgbd_publisher/rgb/camera_info" />
+        <remap from="/image" to="/rgbd_publisher/rgb/image" />
         <param name="image_is_rectified" value="True" />
         <param name="marker_size" value="$(arg markerSize)" />
         <param name="marker_id" value="$(arg markerId)" />
@@ -35,9 +39,9 @@
     </node>
     ?>
 
-    <node pkg="aruco_detect" type="aruco_detect" name="aruco_single" output="screen">
-        <remap from="/camera_info" to="/stereo_publisher/rgb/camera_info" />
-        <remap from="/camera" to="/stereo_publisher/rgb/image" />
+    <node pkg="aruco_detect" type="aruco_detect" name="aruco_single">
+        <remap from="/camera_info" to="/rgbd_publisher/rgb/camera_info" />
+        <remap from="/camera" to="/rgbd_publisher/rgb/image" />
         <param name="dictionary" value="0" />
         <param name="publish_images" value="true" />
         <param name="fiducial_len" value="$(arg markerSize)" />
@@ -54,6 +58,10 @@
         <param name="y_p_gain" value="$(arg y_p_gain)" />
         <param name="yaw_p_gain" value="$(arg yaw_p_gain)" />
         <param name="drone_frame" value="$(arg drone_frame)" />
+	<param name="yaw_vy_p_gain" value="$(arg yaw_vy_p_gain)" />
+	<param name="max_v" value="$(arg max_v)" />
+	<param name="max_yaw_rate" value="$(arg max_yaw_rate)" />
+	<remap from="/target" to="/mavros/setpoint_raw/local" />
     </node>
 
 </launch>
