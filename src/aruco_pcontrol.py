@@ -67,7 +67,6 @@ def constructTargetHeight(vx, vy, vz,pz,yaw_rate):
     target_raw_pose.type_mask = mask  
 
     return target_raw_pose
-
 def fiducialCb(data: FiducialTransformArray):
     global landed
     for fid in data.transforms:
@@ -111,62 +110,11 @@ def fiducialCb(data: FiducialTransformArray):
             rospy.loginfo(f"x {fid.transform.translation.z:.3f} xe{x_error:.3f} ye{y_error:.3f} ze{z_error:.3f} yawe{yaw_error:.3f}")
             # rospy.loginfo(f"vx{vx} vy{vy} vz{vz} vyaw{vyaw}")
             # change to pos x(default 1m) and vy, do not touch vz
-
-
-def mavrosCb(data: State):
+def mavrosStateCb(data: State):
     global mavros_state
     mavros_state=data.mode
 
 
-def startPControl():
-    # rospy.Subscriber("/aruco_single/pose",
-    #                  PoseStamped, arucoCb, queue_size=1)
-    rospy.Subscriber("/fiducial_transforms",
-                     FiducialTransformArray, fiducialCb, queue_size=1)
-    rospy.Subscriber("/mavros/state", State, mavrosCb, queue_size=1)
-    
-    for i in range(200):
-        if local_pose is not None:
-            break
-        else:
-            print("Waiting for initialization.")
-            rospy.Rate(20)
-        if i==199:
-            rospy.logerr("Failed to get local pose message!")
-            rospy.signal_shutdown()
-    rospy.loginfo("Waiting for takeoff command")
-    while( not rospy.is_shutdown()):
-        if takeoff:
-            takeoff_height=0.5
-            target_msg = constructTargetHeight(0, 0, max_v*0.5,takeoff_height, 0)
-            def arm():
-                if arm_srv(True):
-                    return True
-                else:
-                    print("Vehicle arming failed!")
-                    return False
-
-            def wait_offboard():
-                return mavros_state=="OFFBOARD"
-            rospy.loginfo("Waiting for Offboard")
-            while not (wait_offboard() or rospy.is_shutdown()):
-                target_pub.publish(target_msg)
-                rospy.Rate(10)
-            if(wait_offboard):
-                rospy.loginfo("Offboard set, arming")
-                if not arm():
-                    rospy.logerr("Failed to arm after offboard!")
-
-            '''
-            main ROS thread
-            '''
-            while no_aruco and not rospy.is_shutdown():
-                target_pub.publish(target_msg)
-                rospy.Rate(10)
-            break
-        else:
-            rospy.Rate(10)
-    
 
 def local_pose_callback(msg):
     global local_pose
@@ -178,6 +126,48 @@ def takeoff_cb(msg):
         takeoff=True
 local_pose_sub = rospy.Subscriber("/mavros/local_position/pose", PoseStamped, local_pose_callback)
 takeoff_sub = rospy.Subscriber("/takeoff", Bool, takeoff_cb)
+'''
+main ROS thread
+'''
+def main():
+    rospy.Subscriber("/fiducial_transforms",
+                     FiducialTransformArray, fiducialCb, queue_size=1)
+    rospy.Subscriber("/mavros/state", State, mavrosStateCb, queue_size=1)
+    
+    for i in range(200):
+        if local_pose is not None:
+            break
+        else:
+            print("Waiting for initialization.")
+            rospy.Rate(20)
+        if i==199:
+            rospy.logerr("Failed to get local pose message!")
+            rospy.signal_shutdown()
+    rospy.loginfo("Waiting for takeoff command")
+
+    def arm():
+        if arm_srv(True):
+            return True
+        else:
+            print("Vehicle arming failed!")
+            return False
+
+    takeoff_height=0.5
+    target_msg = constructTargetHeight(0, 0, max_v*0.5,takeoff_height, 0)
+    rospy.loginfo("Waiting for Offboard")
+    while not (mavros_state=="OFFBOARD" and takeoff):
+        if rospy.is_shutdown():
+            return
+        target_pub.publish(target_msg)
+        rospy.Rate(10)
+    rospy.loginfo("Offboard set, arming")
+    while no_aruco and not rospy.is_shutdown():
+        if not arm():
+            rospy.logerr("Failed to arm after offboard!")
+            return
+        target_pub.publish(target_msg)
+        rospy.Rate(10)
+    
 
 if __name__ == '__main__':
-    startPControl()
+    main()
