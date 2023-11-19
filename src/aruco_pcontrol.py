@@ -10,9 +10,9 @@ from geometry_msgs.msg import PoseStamped
 rospy.init_node('aruco_pcontrol', anonymous=True)
 import numpy as np
 import time
-target_pub = rospy.Publisher('target', PositionTarget, queue_size=10)
-flight_mode_srv = rospy.ServiceProxy('/mavros/set_mode', SetMode)
-arm_srv = rospy.ServiceProxy('/mavros/cmd/arming', CommandBool)
+target_pub = rospy.Publisher('mavros/setpoint_raw/local', PositionTarget, queue_size=10)
+flight_mode_srv = rospy.ServiceProxy('mavros/set_mode', SetMode)
+arm_srv = rospy.ServiceProxy('mavros/cmd/arming', CommandBool)
 x_p_gain = float(rospy.get_param('~x_p_gain'))
 x_pos_goal = float(rospy.get_param('~x_pos_goal'))
 y_p_gain = float(rospy.get_param('~y_p_gain'))
@@ -29,7 +29,10 @@ mavros_state=None
 landed=False
 local_pose=None
 no_aruco=True
+finished_takeoff=False
 takeoff=False
+close_enough=False
+takeoff_height=0.8
 
 #Positive yaw  rate is clockwise
 def constructTarget(vx, vy, vz,yaw_rate):
@@ -56,11 +59,13 @@ def constructTargetHeight(vx, vy, vz,pz,yaw_rate):
     target_raw_pose.coordinate_frame = PositionTarget.FRAME_BODY_NED  # 8
     target_raw_pose.velocity.x = np.clip(vx,-max_v,max_v)
     target_raw_pose.velocity.y = np.clip(vy,-max_v,max_v)
-    target_raw_pose.velocity.z = np.clip(vz,-max_v,max_v)
+    target_raw_pose.velocity.z = vz
+    target_raw_pose.position.x = 0
+    target_raw_pose.position.y = 0
     target_raw_pose.position.z = pz
     target_raw_pose.yaw_rate = np.clip(yaw_rate,-max_yaw_rate,max_yaw_rate)
 
-    mask = PositionTarget.IGNORE_PX | PositionTarget.IGNORE_PY | PositionTarget.IGNORE_PZ \
+    mask = PositionTarget.IGNORE_PX | PositionTarget.IGNORE_PY \
         | PositionTarget.IGNORE_AFX | PositionTarget.IGNORE_AFY | PositionTarget.IGNORE_AFZ \
         | PositionTarget.FORCE | PositionTarget.IGNORE_YAW
 
@@ -68,7 +73,12 @@ def constructTargetHeight(vx, vy, vz,pz,yaw_rate):
 
     return target_raw_pose
 def fiducialCb(data: FiducialTransformArray):
-    global landed
+    global landed, finished_takeoff,no_aruco, close_enough, takeoff_height
+    
+    
+    # TODO: height position target not working, send vy based on difference from takeoff_height instead before close_enough is True
+
+
     for fid in data.transforms:
         if fid.fiducial_id!=5:
             continue
@@ -78,17 +88,20 @@ def fiducialCb(data: FiducialTransformArray):
         y_error=(-fid.transform.translation.x)
         z_error=-(0.2+fid.transform.translation.y)
         quat=fid.transform.rotation
-        yaw_error = -tf_conversions.transformations.euler_from_quaternion(
+        # yaw_error = -tf_conversions.transformations.euler_from_quaternion(
+        #             [quat.x, quat.y, quat.z, quat.w])[1]
+        yaw_error = tf_conversions.transformations.euler_from_quaternion(
                     [quat.x, quat.y, quat.z, quat.w])[1]
         # rospy.loginfo(f"{x_error},{y_error},{yaw_error}")
         #rospy.loginfo(f"{tf_conversions.transformations.euler_from_quaternion([quat.x, quat.y, quat.z, quat.w])[0]},{tf_conversions.transformations.euler_from_quaternion([quat.x, quat.y, quat.z, quat.w])[1]},{tf_conversions.transformations.euler_from_quaternion([quat.x, quat.y, quat.z, quat.w])[2]}")
-        if not landed:
+        if (not landed)  :
             no_aruco=False
             vx=0
             vy=0
             vz=0
             vyaw=0
             if(abs(x_error)<error_margin and abs(y_error)<error_margin and abs(yaw_error)<error_margin):
+                close_enough=True
                 vz=z_error*x_p_gain
                 if abs(z_error)<error_margin:
                     rospy.loginfo("all aligned")
@@ -104,10 +117,15 @@ def fiducialCb(data: FiducialTransformArray):
         
             # pos yaw rate is clockwise
             vyaw=yaw_error*yaw_p_gain
-            target=constructTarget(vx,vy,vz,vyaw)
-            target_pub.publish(target)
-            
-            rospy.loginfo(f"x {fid.transform.translation.z:.3f} xe{x_error:.3f} ye{y_error:.3f} ze{z_error:.3f} yawe{yaw_error:.3f}")
+            if close_enough:
+                target=constructTargetHeight(vx,vy,0.4,takeoff_height,vyaw)
+            else:
+                target=constructTarget(vx,vy,vz,vyaw)
+            if finished_takeoff:
+                target_pub.publish(target)
+                rospy.loginfo(f"PUBBING x {fid.transform.translation.z:.3f} xe{x_error:.3f} ye{y_error:.3f} ze{z_error:.3f} yawe{yaw_error:.3f}")
+            else:
+                rospy.loginfo(f"NOT PUBBING x {fid.transform.translation.z:.3f} xe{x_error:.3f} ye{y_error:.3f} ze{z_error:.3f} yawe{yaw_error:.3f}")
             # rospy.loginfo(f"vx{vx} vy{vy} vz{vz} vyaw{vyaw}")
             # change to pos x(default 1m) and vy, do not touch vz
 def mavrosStateCb(data: State):
@@ -124,25 +142,29 @@ def takeoff_cb(msg):
     global takeoff
     if(msg.data==True):
         takeoff=True
-local_pose_sub = rospy.Subscriber("/mavros/local_position/pose", PoseStamped, local_pose_callback)
-takeoff_sub = rospy.Subscriber("/takeoff", Bool, takeoff_cb)
+local_pose_sub = rospy.Subscriber("mavros/local_position/pose", PoseStamped, local_pose_callback)
+takeoff_sub = rospy.Subscriber("takeoff", Bool, takeoff_cb)
 '''
 main ROS thread
 '''
 def main():
-    rospy.Subscriber("/fiducial_transforms",
+    global finished_takeoff, no_aruco
+
+    rospy.Subscriber("fiducial_transforms",
                      FiducialTransformArray, fiducialCb, queue_size=1)
-    rospy.Subscriber("/mavros/state", State, mavrosStateCb, queue_size=1)
+    rospy.Subscriber("mavros/state", State, mavrosStateCb, queue_size=1)
     
     for i in range(200):
+        if rospy.is_shutdown():
+            break
         if local_pose is not None:
             break
         else:
             print("Waiting for initialization.")
-            rospy.Rate(20)
+            rospy.sleep(0.5)
         if i==199:
             rospy.logerr("Failed to get local pose message!")
-            rospy.signal_shutdown()
+            rospy.signal_shutdown("Failed to get local pose message!")
     rospy.loginfo("Waiting for takeoff command")
 
     def arm():
@@ -152,21 +174,33 @@ def main():
             print("Vehicle arming failed!")
             return False
 
-    takeoff_height=0.5
-    target_msg = constructTargetHeight(0, 0, max_v*0.5,takeoff_height, 0)
+    target_msg = constructTargetHeight(0, 0, 0.4,takeoff_height, 0)
+    # target_msg = constructTargetHeight(0, 0, 0,takeoff_height, 0)
     rospy.loginfo("Waiting for Offboard")
     while not (mavros_state=="OFFBOARD" and takeoff):
         if rospy.is_shutdown():
             return
         target_pub.publish(target_msg)
-        rospy.Rate(10)
+        rospy.sleep(0.1)
     rospy.loginfo("Offboard set, arming")
-    while no_aruco and not rospy.is_shutdown():
+    for _ in range(100):
         if not arm():
             rospy.logerr("Failed to arm after offboard!")
             return
+        if local_pose.pose.position.z>takeoff_height:
+            break
         target_pub.publish(target_msg)
-        rospy.Rate(10)
+        rospy.sleep(0.1)
+    finished_takeoff=True
+    target_msg = constructTargetHeight(0, 0, 0,takeoff_height, 0)
+    rospy.loginfo("Waiting for aruco before stopping")
+    while no_aruco and not rospy.is_shutdown():
+        target_pub.publish(target_msg)
+        rospy.sleep(0.1)
+    rospy.loginfo("aruco detected")
+    rospy.Rate(10)
+    while not rospy.is_shutdown():
+        rospy.spin()
     
 
 if __name__ == '__main__':
