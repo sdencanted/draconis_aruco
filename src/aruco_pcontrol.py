@@ -21,6 +21,7 @@ yaw_p_gain = float(rospy.get_param('~yaw_p_gain'))
 target_frame=rospy.get_param('~drone_frame')
 max_v=rospy.get_param('~max_v')
 max_yaw_rate=rospy.get_param('~max_yaw_rate')
+takeoff_height=rospy.get_param('~takeoff_height')
 error_margin=0.05
 tf_buffer = tf2_ros.Buffer(rospy.Duration(100.0))  # tf buffer length
 tf_listener = tf2_ros.TransformListener(tf_buffer)
@@ -32,7 +33,6 @@ no_aruco=True
 finished_takeoff=False
 takeoff=False
 close_enough=False
-takeoff_height=0.8
 
 #Positive yaw  rate is clockwise
 def constructTarget(vx, vy, vz,yaw_rate):
@@ -102,6 +102,7 @@ def fiducialCb(data: FiducialTransformArray):
             vyaw=0
             if(abs(x_error)<error_margin and abs(y_error)<error_margin and abs(yaw_error)<error_margin):
                 close_enough=True
+                rospy.loginfo("Close Enough is True")
                 vz=z_error*x_p_gain
                 if abs(z_error)<error_margin:
                     rospy.loginfo("all aligned")
@@ -114,13 +115,15 @@ def fiducialCb(data: FiducialTransformArray):
             # else:
             vx=x_error*x_p_gain
             vy=y_error*y_p_gain+yaw_error*yaw_vy_p_gain*fid.transform.translation.z
-        
+            vz=z_error*x_p_gain
             # pos yaw rate is clockwise
             vyaw=yaw_error*yaw_p_gain
             if close_enough:
+                rospy.loginfo("Pubbing constructTargetHeight, Z not in error margin")
                 target=constructTargetHeight(vx,vy,0.4,takeoff_height,vyaw)
             else:
-                target=constructTarget(vx,vy,vz,vyaw)
+                # target=constructTarget(vx,vy,vz,vyaw)
+                target=constructTargetHeight(vx,vy,vz,takeoff_height,vyaw)
             if finished_takeoff:
                 target_pub.publish(target)
                 rospy.loginfo(f"PUBBING x {fid.transform.translation.z:.3f} xe{x_error:.3f} ye{y_error:.3f} ze{z_error:.3f} yawe{yaw_error:.3f}")
@@ -198,6 +201,7 @@ def main():
         target_pub.publish(target_msg)
         rospy.sleep(0.1)
     rospy.loginfo("aruco detected")
+    no_aruco = True
     rospy.Rate(10)
     while not rospy.is_shutdown():
         rospy.spin()
