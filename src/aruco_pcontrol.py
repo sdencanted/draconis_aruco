@@ -6,6 +6,7 @@ from fiducial_msgs.msg import FiducialTransform,FiducialTransformArray
 from mavros_msgs.msg import State, PositionTarget
 from mavros_msgs.srv import SetMode, CommandBool
 from std_msgs.msg import Bool
+from std_msgs.srv import Empty
 from geometry_msgs.msg import PoseStamped
 rospy.init_node('aruco_pcontrol', anonymous=True)
 import numpy as np
@@ -13,6 +14,10 @@ import time
 target_pub = rospy.Publisher('mavros/setpoint_raw/local', PositionTarget, queue_size=10)
 flight_mode_srv = rospy.ServiceProxy('mavros/set_mode', SetMode)
 arm_srv = rospy.ServiceProxy('mavros/cmd/arming', CommandBool)
+reset_odom_srv = rospy.ServiceProxy('reset_odom', Empty)
+pause_odom_srv = rospy.ServiceProxy('pause_odom', Empty)
+reset_srv = rospy.ServiceProxy('reset', Empty)
+pause_srv = rospy.ServiceProxy('pause', Empty)
 x_p_gain = float(rospy.get_param('~x_p_gain'))
 x_pos_goal = float(rospy.get_param('~x_pos_goal'))
 y_p_gain = float(rospy.get_param('~y_p_gain'))
@@ -74,11 +79,6 @@ def constructTargetHeight(vx, vy, vz,pz,yaw_rate):
     return target_raw_pose
 def fiducialCb(data: FiducialTransformArray):
     global landed, finished_takeoff,no_aruco, close_enough, takeoff_height
-    
-    
-    # TODO: height position target not working, send vy based on difference from takeoff_height instead before close_enough is True
-
-
     for fid in data.transforms:
         if fid.fiducial_id!=5:
             continue
@@ -107,8 +107,21 @@ def fiducialCb(data: FiducialTransformArray):
                 if abs(z_error)<error_margin:
                     rospy.loginfo("all aligned")
                     if(flight_mode_srv(custom_mode='AUTO.LAND')):
-                        rospy.loginfo("land success")
+                        rospy.loginfo("land success, waiting for disarm")
                         landed=True
+                        while(mavros_state.armed):
+                            rospy.sleep(0.1)
+                        rospy.loginfo("Resetting Odom and Map")
+                        if(not reset_odom_srv()):
+                            rospy.logerr("Failed to reset odom!")
+                        if(not pause_odom_srv()):
+                            rospy.logerr("Failed to pause odom!")
+                        if(not reset_srv()):
+                            rospy.logerr("Failed to reset map!")
+                        if(not pause_srv()):
+                            rospy.logerr("Failed to pause map!")
+                        rospy.signal_shutdown("Deployment Finished")
+
                     else:
                         rospy.loginfo("land fail")
 
@@ -133,7 +146,7 @@ def fiducialCb(data: FiducialTransformArray):
             # change to pos x(default 1m) and vy, do not touch vz
 def mavrosStateCb(data: State):
     global mavros_state
-    mavros_state=data.mode
+    mavros_state=data
 
 
 
@@ -178,14 +191,18 @@ def main():
             return False
 
     target_msg = constructTargetHeight(0, 0, 0.4,takeoff_height, 0)
-    # target_msg = constructTargetHeight(0, 0, 0,takeoff_height, 0)
     rospy.loginfo("Waiting for Offboard")
-    while not (mavros_state=="OFFBOARD" and takeoff):
+    while not (mavros_state.mode=="OFFBOARD" and takeoff):
         if rospy.is_shutdown():
             return
         target_pub.publish(target_msg)
         rospy.sleep(0.1)
     rospy.loginfo("Offboard set, arming")
+    
+    if(not reset_odom_srv()):
+        rospy.logerr("Failed to reset odom!")
+    if(not reset_srv()):
+        rospy.logerr("Failed to reset map!")
     for _ in range(100):
         if not arm():
             rospy.logerr("Failed to arm after offboard!")
@@ -205,6 +222,7 @@ def main():
     rospy.Rate(10)
     while not rospy.is_shutdown():
         rospy.spin()
+    
     
 
 if __name__ == '__main__':
